@@ -1,16 +1,18 @@
-import { authApi } from '@/api-client';
-import { useRouter } from 'next/navigation';
-import { createContext, useContext, useState } from 'react';
+'use client';
+import { authApi, setAuthorizationByAccessToken } from '@/api-client';
+import Loading from '@/app/loading';
+import { usePathname, useRouter } from 'next/navigation';
+import { createContext, useContext, useEffect, useState } from 'react';
 
 interface AuthContextModel {
-  // isAuthenticated: boolean;
-  // user: UserInfo | null;
+  isAuthenticated: boolean;
+  user: UserInfo | undefined;
   login: (username: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextModel>({
-  // isAuthenticated: false,
-  // user: null,
+  isAuthenticated: false,
+  user: undefined,
   login: async () => {},
 });
 
@@ -27,44 +29,64 @@ type ProtectRouteProps = {
   children: React.ReactNode;
 };
 
+const ACCESS_TOKEN_STORAGE_KEY = 'accessToken';
+const getAccessToken = (): string | null =>
+  localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+const storeAccessToken = (accessToken: string) =>
+  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+
 const AuthProvider = ({ children }: AuthProviderProps) => {
   console.log('AuthProvider is mounted');
-  // const [user, setUser] = useState<UserInfo | undefined>(null);
+  const [user, setUser] = useState<UserInfo | undefined>();
+  const [accessToken, setAccessToken] = useState<string | null>();
+
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = getAccessToken();
+    if (!token) return;
+
+    setAccessToken(token);
+    setAuthorizationByAccessToken(token);
+  }, []);
 
   const login = async (username: string, password: string): Promise<void> => {
-    console.log('Logging in user', username, password);
-    console.log('ok');
-
-    // const { data } = await authApi.login({ username, password });
-
-    // console.log(data);
-
+    const { data } = await authApi.login({ username, password });
+    console.log(data);
     // $http.defaults.headers.Authorization = `Bearer ${data.accessToken}`;
+    setUser({
+      username: data.username,
+      role: data.role,
+    });
 
-    // console.log('Got user', user);
+    setAuthorizationByAccessToken(data.accessToken);
+    storeAccessToken(data.accessToken);
+
+    router.push('/');
   };
 
   return (
-    <AuthContext.Provider value={{ login }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider
+      value={{ isAuthenticated: !!accessToken, user, login }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
 };
 
-function useAuth() {
-  const context = useContext(AuthContext);
-  return context;
-}
-// export const ProtectRoute = ({ children }: ProtectRouteProps) => {
-//   console.log('protect');
-//   const { isAuthenticated } = useAuth();
-//   console.log(isAuthenticated);
+const useAuth = () => useContext(AuthContext);
 
-//   const router = useRouter();
+const ProtectRoute = ({ children }: ProtectRouteProps) => {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const pathName = usePathname();
 
-//   if (!isAuthenticated) {
-//     router.push('/login');
-//   }
+  if (!isAuthenticated && pathName !== '/login') {
+    router.push('/login');
+    return <Loading />;
+  }
 
-//   return children;
-// };
+  return children;
+};
 
-export { AuthProvider, useAuth };
+export { AuthProvider, ProtectRoute, useAuth };

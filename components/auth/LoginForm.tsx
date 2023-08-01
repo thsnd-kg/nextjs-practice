@@ -12,7 +12,6 @@ interface UserLogin {
 export const LoginForm: React.FC = (props) => {
   const router = useRouter();
   const { login } = useAuth();
-  // const { login } = props;
 
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -27,10 +26,7 @@ export const LoginForm: React.FC = (props) => {
 
   const handleLogin = async (event: any) => {
     event.preventDefault();
-
-    console.log('chec');
     await login(username, password);
-    console.log('2');
   };
 
   return (
